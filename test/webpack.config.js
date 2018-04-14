@@ -15,5 +15,5 @@ module.exports = {
         path: PATHS.build,
         filename: "[name].js"
     },
-    plugins: [new FontsWebpackPlugin("../fonts", "fonts/[family]/[style]-[weight].[ext]")]
+    plugins: [new FontsWebpackPlugin(path.join(__dirname, "../fonts"), "fonts/[family]/[style]-[weight].[ext]")]
 }

@@ -71,28 +71,24 @@ export const guessWeight = (meta: string[]): FontWeight => {
     }
 };
 
-type Queryable = Omit<FontMeta, "path">;
-
-export const handlePathQuery = ({ weight, style, family, exts, files }: FontMetaEnriched) => (
+export const handlePathQuery = (assetPath: string, { weight, style, family, exts, files }: FontMetaEnriched) => (
     files.map(fileMeta => {
         const textVars = {
             weight,
             style,
             family,
             name: path.basename(fileMeta.path),
-            ext: path.extname(fileMeta.path),
+            ext: path.extname(fileMeta.path).slice(1),
         };
 
         const varKeys = Object.keys(textVars).join("|");
 
-        const matchKeys = new RegExp(`/\[(${varKeys})\]/`, "g");
+        const matchKeys = new RegExp(`\\[(${varKeys})\\]`, "g");
 
-        const nextPath = fileMeta.path.replace(
+        const nextPath = assetPath.replace(
             matchKeys,
             ($0, $1) => textVars[$1]
         );
-
-        console.log(nextPath);
 
         return {
             ...fileMeta,
@@ -100,5 +96,7 @@ export const handlePathQuery = ({ weight, style, family, exts, files }: FontMeta
         };
     })
 )
+
+export const joinStrExt = (fontPath: string, ext: string) => `${fontPath}.${ext}`
 
 export const joinExt = (font: FontMeta, ext?: string) => `${font.path}.${ext || head(font.exts, () => "ttf")}`
