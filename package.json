@@ -1,10 +1,10 @@
 {
   "name": "fonts-webpack-plugin",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Webpack plugin for automounting fonts",
   "main": "src/index.ts",
   "scripts": {
-    "build": "tsc -d -p ./src",
+    "build": "tsc -p ./src",
     "dev": "nodemon -w src -e ts -x npm run test:build",
     "test:build": "tsc -p src && webpack --config test/webpack.config.js"
   },
@@ -32,6 +32,7 @@
     "webpack-cli": "^2.0.14"
   },
   "dependencies": {
+    "chalk": "^2.3.2",
     "fontkit": "^1.7.7",
     "glob": "^7.1.2",
     "webpack-sources": "^1.1.0"

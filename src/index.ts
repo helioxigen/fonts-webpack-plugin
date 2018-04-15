@@ -33,21 +33,19 @@ class FontsWebpackPlugin {
     apply(compiler: webpack.Compiler) {
         this.compiler = compiler;
 
-        this.fontsFolder = path.resolve(compiler.options.context,
-            this.fontsFolder);
+        this.fontsFolder = path.resolve(compiler.options.context, this.fontsFolder);
 
         this.compiler.hooks.emit.tapPromise(this.pluginName, compilation => this.addFilesToAssets(compilation))
     }
 
     handleLoadError = filename => () => Promise.reject(new Error(`${this.pluginName}: could not load file ${filename}`));
 
-    enquireFSData = (fontPath: string) => {
-        return Promise.all([
-            new Promise<string>(res => res(fontPath)),
-            fsStatAsync(fontPath),
-            fsReadFileAsync(fontPath),
-        ]).catch(this.handleLoadError(fontPath))
-    }
+    enquireFSData = (fontPath: string) => Promise.all([
+        new Promise<string>(res => res(fontPath)),
+        fsStatAsync(fontPath),
+        fsReadFileAsync(fontPath),
+    ]).catch(this.handleLoadError(fontPath))
+
 
     gatherFileMeta = async (font: FontMeta): Promise<FontMetaEnriched> => {
         const {
@@ -134,7 +132,7 @@ class FontsWebpackPlugin {
                 familyName,
                 subfamilyName
             } = fontkit.openSync(path.resolve(joinStrExt(pathName, headExt)));
-            
+
 
             const family = head(familyName.split(" "), () => "");
 

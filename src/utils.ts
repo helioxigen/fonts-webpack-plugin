@@ -7,10 +7,10 @@ import { FontFace } from "csstype";
 export const fsStatAsync = promisify(fs.stat);
 export const fsReadFileAsync = promisify(fs.readFile);
 
-type FontWeight = FontFace["fontWeight"];
-type FontStyle = FontFace["fontStyle"];
+export type FontWeight = FontFace["fontWeight"];
+export type FontStyle = FontFace["fontStyle"];
 
-type CommonFontExts = string | "woff" | "woff2" | "ttf" | "otf";
+export type CommonFontExts = string | "woff" | "woff2" | "ttf" | "otf";
 
 export type FontMeta = {
     family: string;
@@ -20,7 +20,7 @@ export type FontMeta = {
     exts: CommonFontExts[];
 };
 
-type Omit<T, K> = Pick<T, Exclude<keyof T, K>>;
+export type Omit<T, K> = Pick<T, Exclude<keyof T, K>>;
 
 export type FontMetaEnriched = Omit<FontMeta, "path"> & {
     files: {
@@ -74,8 +74,8 @@ export const guessWeight = (meta: string[]): FontWeight => {
 export const handlePathQuery = (assetPath: string, { weight, style, family, exts, files }: FontMetaEnriched) => (
     files.map(fileMeta => {
         const textVars = {
-            weight,
-            style,
+            weight: weight === "normal" ? "" : weight,
+            style: style === "normal" ? "regular" : style,
             family,
             name: path.basename(fileMeta.path),
             ext: path.extname(fileMeta.path).slice(1),
@@ -88,7 +88,9 @@ export const handlePathQuery = (assetPath: string, { weight, style, family, exts
         const nextPath = assetPath.replace(
             matchKeys,
             ($0, $1) => textVars[$1]
-        );
+        )
+        .replace(/-(\.)/,"$1")
+        .replace(/(\/)-/,"$1")
 
         return {
             ...fileMeta,
