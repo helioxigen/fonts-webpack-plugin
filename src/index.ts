@@ -7,7 +7,6 @@ import * as fontkit from "fontkit";
 
 import { RawSource } from "webpack-sources";
 import {
-    FontMeta,
     fsStatAsync,
     fsReadFileAsync,
     uniq,
@@ -16,12 +15,16 @@ import {
     handlePathQuery,
     joinExt,
     joinStrExt,
-    FontMetaEnriched
+    FontMetaFileMeta,
+    uniqBy,
+    extractExtentions
 } from "./utils";
+import { FontMeta } from "./FontMeta";
 
 class FontsWebpackPlugin {
     compiler: webpack.Compiler;
     pluginName = "FontsWebpackPlugin";
+    styles = "";
 
     constructor(
         public fontsFolder: string,
@@ -38,46 +41,12 @@ class FontsWebpackPlugin {
         this.compiler.hooks.emit.tapPromise(this.pluginName, compilation => this.addFilesToAssets(compilation))
     }
 
-    handleLoadError = filename => () => Promise.reject(new Error(`${this.pluginName}: could not load file ${filename}`));
-
-    enquireFSData = (fontPath: string) => Promise.all([
-        new Promise<string>(res => res(fontPath)),
-        fsStatAsync(fontPath),
-        fsReadFileAsync(fontPath),
-    ]).catch(this.handleLoadError(fontPath))
-
-
-    gatherFileMeta = async (font: FontMeta): Promise<FontMetaEnriched> => {
-        const {
-            path,
-            ...fontEnriched
-        } = font;
-
-        const fontPaths = font.exts.map(ext => joinExt(font, ext))
-
-        const fileData = fontPaths
-            .map(fontPath => this.enquireFSData(fontPath))
-            .map(enquire =>
-                enquire.then(([path, stats, source]) => ({
-                    path,
-                    source,
-                    stats,
-                }))
-            )
-
-        return {
-            ...fontEnriched,
-            files: await Promise.all(fileData)
-        }
-
-    }
-
-    generateStyles = (fontMeta: FontMetaEnriched, assetPaths) => {
+    generateStyles = (fontMeta: FontMeta, assetPaths) => {
         const src = assetPaths.map(file =>
             `url(${file.path}) format('${path.extname(file.path).slice(1)}')`
         ).join(",");
 
-        return `
+        this.styles += `
             @font-face {
                 font-family: ${fontMeta.family};
                 src: ${src};
@@ -85,14 +54,13 @@ class FontsWebpackPlugin {
                 font-style: ${fontMeta.style};
             }
         `.replace(/ /g, "")
+
     }
 
     addFilesToAssets = async (compilation: webpack.compilation.Compilation) => {
-        const fontsMeta = await this.convertFonts();
+        const fontsMeta = await this.resolveFonts(this.fontsFolder);
 
-        const files = await Promise.all(fontsMeta.map(this.gatherFileMeta));
-
-        const styles = files.map(meta => {
+        fontsMeta.map(meta => {
             const assetPaths = handlePathQuery(this.assetPath, meta);
 
             assetPaths.forEach(file =>
@@ -102,39 +70,58 @@ class FontsWebpackPlugin {
                 }
             )
 
-            return this.generateStyles(meta, assetPaths)
+            this.generateStyles(meta, assetPaths)
         });
 
-        compilation.assets["style/fonts.css"] = new RawSource(styles.join("\n"))
+        compilation.assets["style/fonts.css"] = new RawSource(this.styles)
     }
 
-    resolveFonts(folder: string): Promise<string[]> {
-        return new Promise(res =>
-            glob(`${folder}/**/*.@(woff|woff2|ttf|otf)`, (er, files) =>
-                res(files)
+    resolveFonts = (folder: string) => new Promise<FontMeta[]>(res =>
+        glob(`${folder}/**/*.@(woff|woff2|ttf|otf)`, (er, files) => {
+            const naked = files.map(path.parse).map(({ dir, name }) => path.join(dir, name))
+
+            const metas = uniq(naked).map(nakedPath => {
+                const fontFiles = files.filter(filePath => filePath.includes(nakedPath));
+
+                return new FontMeta(...fontFiles);
+            })
+
+            res(metas);
+        })
+    )
+
+    convertFonts = async () => {
+        const fontFiles = await this.resolveFonts(this.fontsFolder);
+
+        const names = fontFiles.map(file => path.parse("qqq")).map(({ dir, name }) => path.resolve(dir, name));
+
+        const files = extractExtentions(fontFiles);
+
+
+
+        path.parse("qqq").name
+
+        const fileNames = new Set(names);
+
+        const fontMap = new Map<string, FontMeta>();
+
+        for (const pathName in fileNames) {
+            const fontPaths = fontFiles.filter(file =>
+                new RegExp(`^${pathName}\.[a-z0-9]*$`).test(file)
             )
-        );
-    }
 
-    convertFonts = async (): Promise<FontMeta[]> => {
-        const files = await this.resolveFonts(this.fontsFolder);
+            const files = await Promise.all(fontPaths.map(this.enquireFSData))
 
-        const names = files.map(file => file.replace(path.extname(file), ""));
-
-        return uniq(names).map(pathName => {
-            const exts = files
-                .filter(file => new RegExp(`^${pathName}\.[a-z0-9]*$`).test(file))
-                .map(file => path.extname(file).slice(1))
-
-            const headExt = head(exts, () => "ttf");
+            const headFont = head(fontPaths, () => { throw new Error(`Font path error in ${pathName}`) })
 
             const {
                 familyName,
                 subfamilyName
-            } = fontkit.openSync(path.resolve(joinStrExt(pathName, headExt)));
+            } = fontkit.openSync(headFont);
 
+            const fallbackFamily = () => path.basename(headFont).replace(/\.[a-z0-9]*$/, "");
 
-            const family = head(familyName.split(" "), () => "");
+            const family = head(familyName.split(" "), fallbackFamily);
 
             const availNames = `${familyName} ${subfamilyName}`.split(" ");
             const meta = uniq(availNames);
@@ -143,8 +130,10 @@ class FontsWebpackPlugin {
 
             const weight = guessWeight(meta);
 
-            return { family, style, weight, path: pathName, exts };
-        });
+            fontMap.set(pathName, { family, style, weight, files })
+        }
+
+        return fontMap
     }
 }
 

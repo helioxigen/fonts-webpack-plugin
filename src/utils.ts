@@ -10,25 +10,20 @@ export const fsReadFileAsync = promisify(fs.readFile);
 export type FontWeight = FontFace["fontWeight"];
 export type FontStyle = FontFace["fontStyle"];
 
-export type CommonFontExts = string | "woff" | "woff2" | "ttf" | "otf";
+export type CommonFontExts = "woff" | "woff2" | "ttf" | "otf";
+
+export type FontMetaFileMeta = {
+    path: string,
+    source: any,
+    stats: any,
+}
 
 export type FontMeta = {
     family: string;
     style: FontStyle | string;
     weight: FontWeight;
-    path: string;
-    exts: CommonFontExts[];
+    files: FontMetaFileMeta[];
 };
-
-export type Omit<T, K> = Pick<T, Exclude<keyof T, K>>;
-
-export type FontMetaEnriched = Omit<FontMeta, "path"> & {
-    files: {
-        path: string,
-        source: any,
-        stats: any,
-    }[]
-}
 
 export const head = <T>(arr: T[], orElse: () => T) => 0 in arr ? arr[0] : orElse()
 
@@ -36,6 +31,38 @@ export const uniq = (arrArg): string[] =>
     arrArg.filter(
         (elem, pos, arr) =>
             arr.findIndex(q => new RegExp(elem, "i").test(q)) === pos
+    );
+
+export const uniqBy = <T extends string>(arrArg: T[], fn: (el: T) => T): T[] =>
+    arrArg.filter((elem, pos, arr) =>
+        arr.findIndex(q => new RegExp(fn(elem), "i").test(q)) === pos
+    );
+
+type Files = {
+    nakedPath: string
+    extentions: string[]
+}
+
+export const extractExtentions = (paths: string[]) => paths.reduce((acc, filePath) => {
+    const { dir, name } = path.parse(filePath);
+
+    const nakedPath = path.join(dir, name);
+
+    if (acc.some(f => f.nakedPath === nakedPath)) return acc;
+
+    const extentions = paths.filter(filePath =>
+        filePath.includes(nakedPath)
+    ).map(path.extname)
+
+    return acc.concat({
+        nakedPath,
+        extentions
+    })
+}, [] as Files[])
+
+export const uniqbBy = <T extends string>(arrArg: T[], fn: (el: T) => T): T[] =>
+    arrArg.filter((elem, pos, arr) =>
+        arr.findIndex(q => new RegExp(fn(elem), "i").test(q)) === pos
     );
 
 export const guessWeight = (meta: string[]): FontWeight => {
@@ -58,10 +85,12 @@ export const guessWeight = (meta: string[]): FontWeight => {
     };
 
     switch (fontWeight) {
-        case "light":
-            return vals(200, 300, 100);
         case "thin":
-            return 400;
+            return 100;
+        case "extralight":
+            return 
+        case "light":
+            return 300;
         case "medium":
             return 500;
         case "bold":
@@ -71,7 +100,7 @@ export const guessWeight = (meta: string[]): FontWeight => {
     }
 };
 
-export const handlePathQuery = (assetPath: string, { weight, style, family, exts, files }: FontMetaEnriched) => (
+export const handlePathQuery = (assetPath: string, { weight, style, family, files }: FontMeta) => (
     files.map(fileMeta => {
         const textVars = {
             weight: weight === "normal" ? "" : weight,
@@ -87,10 +116,10 @@ export const handlePathQuery = (assetPath: string, { weight, style, family, exts
 
         const nextPath = assetPath.replace(
             matchKeys,
-            ($0, $1) => textVars[$1]
+            (_, key) => textVars[key]
         )
-        .replace(/-(\.)/,"$1")
-        .replace(/(\/)-/,"$1")
+            .replace(/-(\.)/, "$1")
+            .replace(/(\/)-/, "$1")
 
         return {
             ...fileMeta,
@@ -98,6 +127,8 @@ export const handlePathQuery = (assetPath: string, { weight, style, family, exts
         };
     })
 )
+
+
 
 export const joinStrExt = (fontPath: string, ext: string) => `${fontPath}.${ext}`
 
